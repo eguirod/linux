@@ -38,11 +38,48 @@ Si hay algún módulo dándonos problemas podemos incluirlo en un blacklist. Exi
 
 ### Ficheros de información y ficheros de dispositivos
 
-* **/proc**: está montado en la RAM que el Kernel usa durante el arranque.
-    * *cpuinfo*: muestra las diferentes CPUs de la máquina y sus carteríisticas propias. Las flags son las características que podemos des/activar.
-    * *interrupts*: vemos la tabla de interrupciones. La gestión es bastante automatizada hoy en día.
+* **/proc**: está montado en la RAM que el Kernel usa durante el arranque. Ficheros interesantes:
+    * *cpuinfo*: muestra las diferentes CPUs de la máquina y sus carteríisticas propias. Las *flags* son las características que podemos des/activar.
+    * *interrupts*: vemos la tabla de interrupciones (IRQ). La gestión es bastante automatizada hoy en día.
     * *ioports*: muestra las diferentes direcciones pci, sus entradas y salidas y los procesos que están en ellos.
     * *dma*: veremos los canales de acceso directo a memoria que hay en la máquina.
 * **/sys**: está montado en la RAM que el Kernel usa durante el arranque. Mismas funciones de /proc pero solo tiene la información de los disp. relacionados con el hardware. Es menos de consulta de usuario.
-* **/dev**: contiene ficheros asociados a disp. de almacenamiento. Tiene su propia nomenclatura para gestionar los disp.
-* **/etc/udev/reules.d**:
+* **/dev**: contiene ficheros asociados a disp. de almacenamiento. Tiene su propia nomenclatura para gestionar los disp, HD[A | B | C | D] en función del puerto IDE que estuviera conectado. Actualmente indiferentemente del tipo de disco duro la nomenclatura es /dev/sd/X.
+* **/etc/udev/reules.d**: pseudosistema que es el encargado de identificar todos los dispositivos cold/hot plug instalados en el sistema. Depende del directorio /sys y actúa como un demonio que escucha el directorio /sys y ante cualqueir cambio de evento en ese directorio, con sus reglas predefinidas, gestionarlo.
+
+### Dispostivos de almacenamiento
+
+-normativa 7DEV
+* Canales IDE: /dev/hdX
+* Floppy disks: /dev/fdX
+* Canales SCSI (SATA, SDD, USB): /dev/sdX
+* Canales SD Cards: /dev/mmcblkXpY
+* Canales NVM: /dev/nvmeZnXpY
+
+## Arranque del sistema
+
+### BIOS o UEFI
+
+* **BIOS**: app que se almacena en una memoria volátil dentro de la placa base que se suele llamar *firmware*. Objetivos:
+    * Checar que todos los componentes hardware de la máquina estén funcionando correctamente en su forma más báscia.
+    * Buscar el primer stage del cargador de arranque y pasarle la ejecución a ese primer sector de arranque para que comience la carga del SO.
+BIOS asume que en los primeros 440 Bytes del primer dispositivo de almacenamiento que nosotros tengamos configurado como arranque, es dónde se encuentra el primer stage del cargador de arranque, normalmente se llama *MBR*. Este *MBR* debe tener 2 cosas:
+    * El primer stage del cargador de arranque.
+    * La tabla de particiones del disco para poder acceder a las diferentes particiones y buscar el sistema de ficheros raíz del SO Linux.
+Pasos de arranque.
+![pasosArranqueBIOS](https://github.com/eguirod/linux/assets/71733548/84fdea89-dea6-4285-9d3a-f5053c01c197)  
+* **UEFI**: es diferente a BIOS. El firmware es cápaz de detectar particiones y de leer el sistema de ficheros. Ventajas, ya no depende del MBR y mejora la seguridad. Usa una memoria volátil NVRAM que está incluida en la placa base. Empezó a emplearse a finales de los 2000. En este sistema existen las apps EFI que se pueden ejecutar de forma automática o pueden ser llamadas desde un menú de arranque. Lo más habitual son los bootloaders, pero también existen los selectores de SO, herramientas de diagnóstico, de reparación o DVDs virtuales para arracar LIVEs CD de SO. Esta info debe estar en una partición de almacenamiento con un sistema de fichero compatibles (FAT32 (más usado), FAT16 o FAT12). En el disco duro que esté el SO debe existir la EFI System Partition, que contiene todas esas apps. Lo ideal es que esté instalado a parte del SO.
+![pasosArranqueUEFI](https://github.com/eguirod/linux/assets/71733548/d02360f6-d6bd-4005-88ca-0feb855874a6)  
+
+### Cargador de arranque  
+
+El ¨**gestor de arranque** se va a encargar del segundo stage del cargador de arranque con el objetivo de poder arrancar el kernel y el SO e inicializar el sistema. El más famoso es **GRUB**, que es un software que lo que permite es una vez que llega al segundo stage del cargador de arranque, ejecuta esta app y nos muestra un listado de los diferentes SO que tengamso en el HDD para poder cargar e inicializar. Suele aparecer en modo silencioso, y para verlo se usa la tecla *Shift* o *Esc*. También peude cambiar el comportamiento del arranque gracias a sus opciones y si queremos que tengan persistencia esos cambios podemos modificarlas en `/etc/default/grub`. Algunas opciones:
+* `init`: establece un iniciador alternartivo (*systemd*).
+* `sytemd.unit`: se indica la unidad (target) a usar por systemd. `systemd.unit=graphical.target`.
+* `mem`: lacantidad de RAM a usar.
+* `maxcpus`: la cantidad de CPU a usar.
+* `root`: establece en qué partición está el raíz.
+* `rootflags`: parámetro para montar la partición raíz.
+* `ro`:solo lectura para raíz.
+* `rw`: lectura escritura para raíz.
+Todas estas opciones las incluiríamos en la línea `GRUB_CMDLINE_LINUX`.
